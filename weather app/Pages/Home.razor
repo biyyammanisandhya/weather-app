@@ -1,0 +1,203 @@
+﻿@page "/"
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Web
+@using MudBlazor
+@using weather_app
+
+<PageTitle>Weather Report</PageTitle>
+
+<MudContainer>
+    <div class="background-container">
+        <MudText Typo="Typo.h4" GutterBottom>Enter City</MudText>
+
+        <MudTextField @bind-Value="cityName"  Variant="Variant.Text" />
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" @onclick="GetWeatherData">Fetch Weather</MudButton>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <MudAlert Severity="Severity.Error">@errorMessage</MudAlert>
+        }
+
+        @if (weatherData != null)
+        {
+            <div class="weather-container">
+                <T>
+                    <MudTableHead>
+                        
+                    </MudTableHead>
+                    <MudTableBody>
+                        <MudTr>
+                            <MudTd>Country</MudTd>
+                            <MudTd>@weatherData.sys.country</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Temperature</MudTd>
+                            <MudTd>@weatherData.main.temp &deg;C</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Coordinates</MudTd>
+                            <MudTd>@weatherData.coord.lon, @weatherData.coord.lat</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Description</MudTd>
+                            <MudTd>@weatherData.weather.FirstOrDefault()?.description</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Feels Like</MudTd>
+                            <MudTd>@weatherData.main.feels_like &deg;C</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Pressure</MudTd>
+                            <MudTd>@weatherData.main.pressure hPa</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Humidity</MudTd>
+                            <MudTd>@weatherData.main.humidity %</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Sea Level</MudTd>
+                            <MudTd>@weatherData.main.sea_level hPa</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Ground Level</MudTd>
+                            <MudTd>@weatherData.main.grnd_level hPa</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Wind Speed</MudTd>
+                            <MudTd>@weatherData.wind.speed m/s</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Wind Degree</MudTd>
+                            <MudTd>@weatherData.wind.deg &deg;</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Sunrise</MudTd>
+                            <MudTd>@DateTimeOffset.FromUnixTimeSeconds(weatherData.sys.sunrise).ToLocalTime().ToString("HH:mm:ss")</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Sunset</MudTd>
+                            <MudTd>@DateTimeOffset.FromUnixTimeSeconds(weatherData.sys.sunset).ToLocalTime().ToString("HH:mm:ss")</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Timezone</MudTd>
+                            <MudTd>@weatherData.timezone</MudTd>
+                        </MudTr>
+                    </MudTableBody>
+                </T>
+            </div>
+        }
+        <style>
+            .background-container {
+                background-image: url('https://t4.ftcdn.net/jpg/04/97/80/99/360_F_497809944_FMo3DO6j7XSlb9rZKOlnqaaWoJhuZXBm.jpg');
+                background-size: cover;
+                background-repeat: no-repeat;
+                background-attachment: fixed;
+                padding: 20px;
+                min-height: 100vh;
+                box-sizing: border-box;
+                color: #333;
+            }
+
+            .weather-container {
+                background-color: rgba(255, 255, 255, 0.8); /* Optional: Add a white background with opacity to make text readable */
+                padding: 20px;
+                border-radius: 10px;
+                max-width: 600px;
+                margin: 0 auto;
+            }
+
+            .weather-table {
+                width: 100%;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            th, td {
+                padding: 8px;
+                text-align: left;
+                border-bottom: 1px solid #ddd;
+            }
+
+            th {
+                background-color: #f4f4f4;
+            }
+        </style>
+
+        @if (showFavorites)
+        {
+            <FavoriteCities OnCitySelected="HandleFavoriteCitySelected" />
+        }
+    </div>
+</MudContainer>
+
+@code {
+    public WeatherData weatherData;
+    private string cityName;
+    private string ApiKey = "4d7d0912d819bc8ea0e6661d1cc2b571"; // Replace with your API key
+    private bool showFavorites;
+    private string errorMessage;
+    private string dialogMessage;
+    private List<string> favoriteCities = new List<string> { "New York", "Los Angeles", "Chicago", "Houston", "Phoenix" };
+    private HttpClient httpClient = new HttpClient();
+    
+    [Inject] private IDialogService DialogService { get; set; }
+
+    private async Task GetWeatherData()
+    {
+        errorMessage = null; // Clear any previous errors
+        if (string.IsNullOrWhiteSpace(cityName))
+        {
+            errorMessage = "City name is required.";
+            return;
+        }
+
+        try
+        {
+            string apiUrl = $"https://api.openweathermap.org/data/2.5/weather?q={cityName}&appid={ApiKey}&units=metric";
+            weatherData = await httpClient.GetFromJsonAsync<WeatherData>(apiUrl);
+
+            if (weatherData == null || weatherData.cod != 200)
+            {
+                errorMessage = "No data found for the specified city or an error occurred.";
+                weatherData = null; // Clear data if there's an error
+                dialogMessage = "You entered an incorrect location. Please enter a correct location.";
+                await OpenDialog();
+            }
+            else
+            {
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error fetching weather data: " + ex.Message;
+            weatherData = null; // Clear data on error
+            dialogMessage = "You entered an incorrect location. Please enter a correct location.";
+            await OpenDialog();
+        }
+    }
+
+    private Task OpenDialog()
+    {
+        var parameters = new DialogParameters { { "Content", dialogMessage } };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small };
+
+        var dialog = DialogService.Show<DialogComponent>("Error", parameters, options);
+        return Task.CompletedTask;
+    }
+
+    private void ShowFavoriteCities()
+    {
+        showFavorites = !showFavorites;
+    }
+
+    private void HandleFavoriteCitySelected(string city)
+    {
+        cityName = city;
+        InvokeAsync(GetWeatherData);
+    }
+}
